@@ -1,5 +1,6 @@
 import logging
 import subprocess
+import time
 
 
 class SSHClient(object):
@@ -12,9 +13,10 @@ class SSHClient(object):
         self.proxy_command = self.proxy_command.format(inject_host=jeck_host, inject_port=jeck_port)
 
         self.account = {}
-        self.reconnect = False
+        self.reconnect = True
 
     def start(self):
+        s = 0
         while True:
             host = self.account.get("host")
             port = self.account.get("port")
@@ -30,11 +32,11 @@ class SSHClient(object):
 
             for line in response.stdout:
                 line = line.decode().lstrip(r'(debug1|Warning):').strip() + '\r'
-                logging.debug("ssh:" + line)
+                # logging.debug("ssh:" + line)
 
                 if 'pledge: proc' in line:
                     self.reconnect = True
-                    logging.info('Connected')
+                    logging.info('ssh:Connected')
 
                 elif 'auth' in line.lower():
                     logging.info(line)
@@ -43,17 +45,21 @@ class SSHClient(object):
                     logging.error("")
 
                 elif 'Permission denied' in line:
-                    logging.error('Access Denied')
+                    logging.error('ssh:Access Denied')
                     break
 
                 elif 'Connection closed' in line:
-                    logging.error('Connection closed')
+                    logging.error('ssh:Connection closed')
                     break
 
                 elif 'Could not request local forwarding' in line:
-                    logging.error('Port used by another programs')
+                    logging.error('ssh:Port used by another programs')
                     break
 
             logging.info('Disconnected')
             if not self.reconnect:
                 break
+
+            logging.info(f"ssh:Waiting for {s}s before reconnecting")
+            time.sleep(s)
+            s = min(s+2, 20)
