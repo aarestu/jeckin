@@ -4,7 +4,7 @@
 HTTP Injector
 
 ## Requirement
-1. python > 3. < 4
+1. python >= 3. < 4
 2. on your OS you need to install ssh, sshpass and corkscrew, for Windows user you can install via cygwin
 
 ## Installation
