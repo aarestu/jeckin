@@ -9,12 +9,13 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name='jeckin',
-    version='0.0.1-beta1',
+    version='0.0.1b2',
     python_requires=">=3.7, <4",
     description="http injector",
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=find_packages(include=['jeckin', 'jeckin.*']),
+    include_package_data=True,
     install_requires=[
     ],
 
