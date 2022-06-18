@@ -1,4 +1,6 @@
 # jeckin
+[![Upload Python Package](https://github.com/aarestu/jeckin/actions/workflows/python-publish.yml/badge.svg)](https://github.com/aarestu/jeckin/actions/workflows/python-publish.yml)
+
 HTTP Injector
 
 ## Requirement
