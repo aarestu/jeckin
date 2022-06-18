@@ -9,7 +9,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name='jeckin',
-    version='0.0.1b2',
+    version='0.0.1b3',
     python_requires=">=3.7, <4",
     description="http injector",
     long_description=long_description,
