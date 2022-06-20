@@ -25,17 +25,23 @@ class SSHClient(object):
             sockport = self.account.get("sockport", 8289)
             proxy_command = self.proxy_command
 
-            command = f'sshpass -p "{password}" ssh -v  -CND 0.0.0.0:{sockport} {host} -p {port} -l "{username}" ' + \
+            command = f'sshpass -p "{password}" ssh -v -CND 0.0.0.0:{sockport} {host} -p {port} -l "{username}" ' + \
                       f'-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="{proxy_command}"'
-            response = subprocess.Popen(command,
-                                        shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+            response = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
             for line in response.stdout:
-                line = line.decode().lstrip(r'(debug1|Warning):').strip() + '\r'
-                # logging.debug("ssh:" + line)
+                line = line.lstrip(rb'(debug1|Warning):').strip() + b'\r'
+                try:
+                    line = line.decode("ascii")
+                    # logging.debug("ssh:" + line)
+                except:
+                    # logging.debug(b"ssh:" + line )
+                    continue
 
                 if 'pledge: proc' in line:
                     self.reconnect = True
+                    s = 0
                     logging.info('ssh:Connected')
 
                 elif 'auth' in line.lower():
@@ -62,4 +68,4 @@ class SSHClient(object):
 
             logging.info(f"ssh:Waiting for {s}s before reconnecting")
             time.sleep(s)
-            s = min(s+2, 20)
+            s = min(s + 1, 20)
