@@ -1,7 +1,7 @@
 import enum
 import logging
 import re
-import select
+from select import select as ss
 import socket
 import ssl
 import threading
@@ -40,11 +40,10 @@ class Tunnel(threading.Thread):
 
     def get_socket_client(self):
         socket_client, null = self.socket_accept
-        socket_client_request = socket_client.recv(
-            self.buffer_size)
+        self.init_socket_client_request = socket_client.recv(self.buffer_size)
         if not self.payload:
-            self.payload = socket_client_request
-        find_dest_host = re.findall(rb'([^\s]+):([^\s]+)', socket_client_request)
+            self.payload = self.init_socket_client_request
+        find_dest_host = re.findall(rb'([^\s]+):([^\s]+)', self.init_socket_client_request)
         if find_dest_host:
             self.host, self.port = find_dest_host[0]
             self.host, self.port = str(self.host.decode()), int(self.port)
@@ -61,7 +60,7 @@ class Tunnel(threading.Thread):
         payload = payload.replace(b'[host_port]', b'[host]:[port]')
         payload = payload.replace(b'[host]', str(self.host).encode())
         payload = payload.replace(b'[port]', str(self.port).encode())
-        payload = payload.replace(b'[protocol]', b'HTTP/1.0')
+        payload = payload.replace(b'[protocol]', b'HTTP/1.1')
         payload = payload.replace(b'[user-agent]', b'User-Agent: Chrome/1.1.3')
         payload = payload.replace(b'[keep-alive]', b'Connection: Keep-Alive')
         payload = payload.replace(b'[close]', b'Connection: Close')
@@ -87,11 +86,11 @@ class Tunnel(threading.Thread):
         sockets = [self.socket_tunnel, self.socket_client]
         timeout = 0
         self.socket_client.sendall(
-            b'HTTP/1.0 200 Connection established\r\n\r\n')
+            b'HTTP/1.1 200 Connection established\r\n\r\n')
         logging.info('Connection established')
         while True:
             timeout += 1
-            socket_io, null, errors = select.select(sockets, [], sockets, 3)
+            socket_io, null, errors = ss(sockets, [], sockets, 3)
             if errors:
                 break
             if socket_io:
@@ -107,31 +106,52 @@ class Tunnel(threading.Thread):
                         timeout = 0
                     except Exception as e:
                         logging.error(e)
+                        break
 
             if timeout == 30:
                 break
 
     def handler_proxy(self):
-        x = 0
+        sockets = [self.socket_tunnel, self.socket_client]
+        timeout = 0
+        logging.info('Connection')
         while True:
-            if x == 1:
-                logging.info('Replacing response')
-            response = self.socket_tunnel.recv(
-                self.buffer_size)
+            i_sockets, _, errors = ss(sockets, [], [])
+            if errors:
+                break
 
-            if not response:
+            timeout += 1
+
+            if not i_sockets:
                 break
-            response_status = response.replace(b'\r', b'').split(b'\n')[0]
-            if re.match(rb'HTTP/\d(\.\d)? 200 .+', response_status):
-                logging.debug('Response OK: {}'.format(self.convert_response(response.decode('charmap'))))
-                self.handler()
+
+            for socket in i_sockets:
+
+                try:
+                    data = socket.recv(self.buffer_size)
+
+                    if len(data) <= 0:
+                        break
+                    if socket is self.socket_tunnel:
+                        if data.find(b'HTTP/1.') == 0:
+                            ori_header = data.split(b"\r\n")[0].decode("ascii")
+                            logging.info(f'Replace {ori_header} -> HTTP/1.1 200 Connection established')
+                            data = b'HTTP/1.1 200 Connection established\r\n\r\n'
+                        self.socket_client.send(data)
+                    elif socket is self.socket_client:
+
+                        if data.split(b" ")[0] == self.init_socket_client_request.split(b" ")[0]:
+                            self.send_payload(self.payload)
+                            continue
+                        self.socket_tunnel.send(data)
+                    timeout = 0
+                except Exception as e:
+                    logging.error(e)
+                    break
+
+
+            if timeout == 30:
                 break
-            else:
-                logging.debug('Response: {}'.format(self.convert_response(response.decode('charmap'))))
-                logging.info('Replacing response')
-                self.socket_tunnel.sendall(
-                    b'HTTP/1.0 200 Connection established\r\nConnection: keep-alive\r\n\r\n')
-                x += 1
 
     def convert_response(self, response):
 
