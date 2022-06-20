@@ -1,5 +1,5 @@
 # jeckin
-[![Upload Python Package](https://github.com/aarestu/jeckin/actions/workflows/python-publish.yml/badge.svg)](https://github.com/aarestu/jeckin/actions/workflows/python-publish.yml)
+[![Upload Python Package](https://github.com/aarestu/jeckin/actions/workflows/python-publish.yml/badge.svg)](https://github.com/aarestu/jeckin/actions/workflows/python-publish.yml) [![PyPI version](https://badge.fury.io/py/jeckin.svg)](https://badge.fury.io/py/jeckin)
 
 HTTP Injector
 
