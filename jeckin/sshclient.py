@@ -1,71 +1,42 @@
-import logging
-import subprocess
+import socket
 import time
+from logging import INFO, WARNING
+
+import paramiko
+from paramiko.util import log_to_file
+from jeckin.utils import get_logger
 
 
-class SSHClient(object):
-    def __init__(self, jeck_host, jeck_port, proxy_command=None):
-        self.jeck_host = jeck_host
-        self.jeck_port = jeck_port
-        self.proxy_command = proxy_command
-        if not self.proxy_command:
-            self.proxy_command = "corkscrew {inject_host} {inject_port} %h %p"
-        self.proxy_command = self.proxy_command.format(inject_host=jeck_host, inject_port=jeck_port)
+class SSHClient(paramiko.SSHClient):
 
-        self.account = {}
-        self.reconnect = True
+    sock = None
 
-    def start(self):
-        s = 0
-        while True:
-            host = self.account.get("host")
-            port = self.account.get("port")
-            username = self.account.get("username")
-            password = self.account.get("password")
-            sockport = self.account.get("sockport", 8289)
-            proxy_command = self.proxy_command
+    _args = None
+    _kwargs = None
 
-            command = f'sshpass -p "{password}" ssh -v -CND 0.0.0.0:{sockport} {host} -p {port} -l "{username}" ' + \
-                      f'-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="{proxy_command}"'
+    def __init__(self):
+        super(SSHClient, self).__init__()
+        self.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        self.set_log_channel("jeckin.transport")
+        self.logger = get_logger("jeckin.ssh")
+        self.logger.setLevel(0)
 
-            response = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    def open(self, server_injector, host, port, username, password, **kwargs):
+        self.sock = socket.socket(*server_injector[0])
+        self.sock.connect(server_injector[1])
 
-            for line in response.stdout:
-                line = line.lstrip(rb'(debug1|Warning):').strip() + b'\r'
-                try:
-                    line = line.decode("ascii")
-                    # logging.debug("ssh:" + line)
-                except:
-                    # logging.debug(b"ssh:" + line )
-                    continue
+        if not kwargs.get("sock"):
+            kwargs["sock"] = self.sock
+        kwargs["banner_timeout"] = 100
+        _kwargs = kwargs
+        _args = (host, port, username, password)
+        self.connect(*_args, **_kwargs)
 
-                if 'pledge: proc' in line:
-                    self.reconnect = True
-                    s = 0
-                    logging.info('ssh:Connected')
+        self.get_transport().set_keepalive(5)
 
-                elif 'auth' in line.lower():
-                    logging.info(line)
+    @property
+    def is_connected(self):
+        return self.get_transport().active if self.get_transport() else False
 
-                elif 'read_passphrase' in line.lower():
-                    logging.error("")
-
-                elif 'Permission denied' in line:
-                    logging.error('ssh:Access Denied')
-                    break
-
-                elif 'Connection closed' in line:
-                    logging.error('ssh:Connection closed')
-                    break
-
-                elif 'Could not request local forwarding' in line:
-                    logging.error('ssh:Port used by another programs')
-                    break
-
-            logging.info('Disconnected')
-            if not self.reconnect:
-                break
-
-            logging.info(f"ssh:Waiting for {s}s before reconnecting")
-            time.sleep(s)
-            s = min(s + 1, 20)
+    def log(self, level, msg):
+        self.logger.log(level, msg)

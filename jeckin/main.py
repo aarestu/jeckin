@@ -2,11 +2,18 @@ import argparse
 import configparser
 import logging
 import os.path
+import threading
+import time
 from argparse import ArgumentTypeError
+from logging import DEBUG, INFO, NOTSET, ERROR
+from socketserver import ThreadingTCPServer
+
+import paramiko
 
 import jeckin
+from jeckin.utils import get_logger
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=INFO)
 
 
 class ConfigType(argparse.FileType):
@@ -15,6 +22,17 @@ class ConfigType(argparse.FileType):
             return super().__call__(string)
         except ArgumentTypeError:
             return string
+
+def get_handler_f(tunnel_type):
+    if tunnel_type is jeckin.TunnelType.direct_ssh:
+        return jeckin.get_direct_ssh_handler
+    elif tunnel_type is jeckin.TunnelType.direct_ssl_tls_ssh:
+        return jeckin.get_direct_ssl_tls_ssh_handler
+    elif tunnel_type is jeckin.TunnelType.proxy_ssh:
+        return jeckin.get_proxy_ssh_handler
+    elif tunnel_type is jeckin.TunnelType.proxy_ssl_tls_ssh:
+        return jeckin.get_proxy_ssltls_ssh_handler
+
 
 
 def main():
@@ -27,6 +45,8 @@ def main():
         help='genererate / load config file')
 
     args = parser.parse_args()
+
+    logger = get_logger("jeckin.main")
 
     if type(args.config) == str:
         print(f"generating config {args.config} from template")
@@ -44,22 +64,47 @@ def main():
     config.read_string(args.config.read())
 
     inject = dict(config.items('inject'))
-    account = dict(config.items('ssh'))
+    ssh_account = dict(config.items('ssh'))
+
     logging.info(inject)
-    logging.info(account)
+    logging.info(ssh_account)
 
-    jeckin_host = inject.get("host")
-    jeckin_port = int(inject.get("port"))
+    tunnel_type = jeckin.get_tunnel_type(inject.get("mode"))
+    tunnel_f = jeckin.get_handler_f(tunnel_type)
 
-    inject["ssh_host"] = account.get("host")
-    inject["ssh_port"] = account.get("port")
+    while True:
+        with ThreadingTCPServer(('', 0), tunnel_f(inject, ssh_account)) as server:
+            server_injector = ((server.address_family, server.socket_type),
+                               ('127.0.0.1', server.server_address[1]))
 
-    injector = jeckin.Injector(jeckin_host, jeckin_port, inject)
-    injector.start()
+            ssh = jeckin.SSHClient()
+            ssh._args = (
+                server_injector,
+                ssh_account.get("host"),
+                ssh_account.get("port"),
+                ssh_account.get("username"),
+                ssh_account.get("password")
+            )
 
-    sshclient = jeckin.SSHClient(jeckin_host, jeckin_port, account.get("proxy_command"))
-    sshclient.account = account
-    sshclient.start()
+            tserver = threading.Thread(target=server.serve_forever)
+            tserver.start()
 
-    injector.stop()
-    injector.join()
+            # ssh.open(*ssh._args)
+            # tserver.join()
+
+            try:
+                ssh.open(*ssh._args)
+
+                if ssh.is_connected:
+                    socks_addr, socks_port = ("127.0.0.1", 8010)
+                    with jeckin.IPv6EnabledTCPServer((socks_addr, socks_port), jeckin.SOCKS5RequestHandler) as proxy:
+                        proxy.ssh = ssh
+                        proxy.serve_forever()
+            except paramiko.ssh_exception.SSHException as e:
+                logger.log(DEBUG, e)
+
+
+            server.shutdown()
+            time.sleep(5)
+
+
