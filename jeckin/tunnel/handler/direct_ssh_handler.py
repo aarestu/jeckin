@@ -15,7 +15,6 @@ def get_direct_ssh_handler(config, ssh_account):
 
         def handle(self):
 
-
             if not self.handle_init_conn(self.connection):
                 return
 

@@ -37,17 +37,15 @@ class BaseTunnelHandler:
             data = self.read_res_sock(self.sock_proxy)
 
             if data.find(b"HTTP/1.1 400") == 0:
-
                 self.log(ERROR, "Bad request")
                 self.server.shutdown()
                 time.sleep(500)
 
-            if data.find(b'SSH') != 0: # try sent initial con
+            if data.find(b'SSH') != 0:  # try sent initial con
                 self.sock_proxy.send(initial_con)
                 data = self.read_res_sock(self.sock_proxy)
 
             if data.find(b'SSH') == 0:
-
                 ssh_client.send(data)
                 ok = True
                 server_name = data.split(b"\r\n")[0].decode()
@@ -110,29 +108,32 @@ class BaseTunnelHandler:
 
     def forward_data(self, remote, client):
         self.log(INFO, "forward data connection")
-        while True:
-            sockets = [remote, client]
+        try:
+            while True:
+                sockets = [remote, client]
 
-            r, _, _ = ss(sockets, [], [])
+                r, _, _ = ss(sockets, [], [])
 
-            if client in r:
-                data = client.recv(self.buffer_size)
-                # self.log(INFO, b"fc:" + data)
-                if remote.send(data) <= 0:
-                    break
+                if client in r:
+                    data = client.recv(self.buffer_size)
+                    # self.log(INFO, b"fc:" + data)
+                    if remote.send(data) <= 0:
+                        break
 
-            if remote in r:
-                data = remote.recv(self.buffer_size)
-                # self.log(INFO, b"fs:" + data)
-                if client.send(data) <= 0:
-                    break
+                if remote in r:
+                    data = remote.recv(self.buffer_size)
+                    # self.log(INFO, b"fs:" + data)
+                    if client.send(data) <= 0:
+                        break
+        except ConnectionError as e:
+            self.log(DEBUG, e)
 
     def create_sock_proxy(self):
         self.log(INFO, f'Connecting to remote proxy {self.target_host} port {self.target_port}')
         self.sock_proxy = self._get_sock(self.target_host, self.target_port)
         return self.sock_proxy
 
-
     def close_proxy(self):
-        self.sock_proxy.close()
-        self.sock_proxy = None
+        if self.sock_proxy:
+            self.sock_proxy.close()
+            self.sock_proxy = None

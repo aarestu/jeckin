@@ -2,10 +2,11 @@ import argparse
 import configparser
 import logging
 import os.path
+import signal
 import threading
 import time
 from argparse import ArgumentTypeError
-from logging import DEBUG, INFO, NOTSET, ERROR
+from logging import INFO
 from socketserver import ThreadingTCPServer
 
 import paramiko
@@ -23,6 +24,7 @@ class ConfigType(argparse.FileType):
         except ArgumentTypeError:
             return string
 
+
 def get_handler_f(tunnel_type):
     if tunnel_type is jeckin.TunnelType.direct_ssh:
         return jeckin.get_direct_ssh_handler
@@ -34,15 +36,9 @@ def get_handler_f(tunnel_type):
         return jeckin.get_proxy_ssltls_ssh_handler
 
 
-
 def main():
-    parser = argparse.ArgumentParser(
-        prog='jeckin',
-        description='HTTP-INJECT tool')
-    parser.add_argument(
-        'config', metavar='config',
-        type=ConfigType('r'),
-        help='genererate / load config file')
+    parser = argparse.ArgumentParser(prog='jeckin', description='HTTP-INJECT tool')
+    parser.add_argument('config', metavar='config', type=ConfigType('r'), help='genererate / load config file')
 
     args = parser.parse_args()
 
@@ -72,39 +68,44 @@ def main():
     tunnel_type = jeckin.get_tunnel_type(inject.get("mode"))
     tunnel_f = jeckin.get_handler_f(tunnel_type)
 
-    while True:
-        with ThreadingTCPServer(('', 0), tunnel_f(inject, ssh_account)) as server:
-            server_injector = ((server.address_family, server.socket_type),
-                               ('127.0.0.1', server.server_address[1]))
+    server = ThreadingTCPServer(('', 0), tunnel_f(inject, ssh_account))
+    server_injector = ((server.address_family, server.socket_type), ('127.0.0.1', server.server_address[1]))
+    server.allow_reuse_address = False
 
-            ssh = jeckin.SSHClient()
-            ssh._args = (
-                server_injector,
-                ssh_account.get("host"),
-                ssh_account.get("port"),
-                ssh_account.get("username"),
-                ssh_account.get("password")
-            )
+    tserver = threading.Thread(target=server.serve_forever)
+    tserver.start()
 
-            tserver = threading.Thread(target=server.serve_forever)
-            tserver.start()
+    socks_addr, socks_port = ("127.0.0.1", 8010)
+    proxy = jeckin.IPv6EnabledTCPServer((socks_addr, socks_port), jeckin.SOCKS5RequestHandler)
 
-            # ssh.open(*ssh._args)
-            # tserver.join()
+    ssh = jeckin.SSHClient()
+    ssh._args = (server_injector, ssh_account.get("host"), ssh_account.get("port"), ssh_account.get("username"),
+                 ssh_account.get("password"))
 
-            try:
-                ssh.open(*ssh._args)
+    proxy.ssh = ssh
 
-                if ssh.is_connected:
-                    socks_addr, socks_port = ("127.0.0.1", 8010)
-                    with jeckin.IPv6EnabledTCPServer((socks_addr, socks_port), jeckin.SOCKS5RequestHandler) as proxy:
-                        proxy.ssh = ssh
-                        proxy.serve_forever()
-            except paramiko.ssh_exception.SSHException as e:
-                logger.log(DEBUG, e)
+    tproxy = threading.Thread(target=proxy.serve_forever)
+    tproxy.start()
 
+    run = True
+    def handler_stop_signals(signum, frame):
+        global run
+        run = False
 
-            server.shutdown()
-            time.sleep(5)
+    signal.signal(signal.SIGINT, handler_stop_signals)
+    signal.signal(signal.SIGTERM, handler_stop_signals)
+    while run:
+        time.sleep(5)
+        if ssh.is_connected:
+            continue
+        try:
+            ssh.open(*ssh._args)
+        except paramiko.ssh_exception.SSHException as e:
+            logger.log(INFO, e)
 
+    proxy.shutdown()
+    proxy.server_close()
+    ssh.close()
 
+    server.shutdown()
+    server.server_close()

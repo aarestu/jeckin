@@ -22,7 +22,7 @@ import socket
 import struct
 import threading
 from errno import ECONNREFUSED, EHOSTUNREACH, ENETDOWN, ENETUNREACH
-from logging import WARNING, ERROR
+from logging import WARNING
 
 import paramiko.ssh_exception
 import select
@@ -275,9 +275,7 @@ class SOCKS5RequestHandler(StreamRequestHandler, object):
         )
 
         if not self.server.ssh.is_connected:
-            self.server.ssh.close()
-            self.server.shutdown()
-            self.server.server_close()
+            self._send_response(status=SOCKS5_CONNECTION_REFUSED)
             return
 
         m = SOCKSMessage(self.request)
@@ -394,13 +392,11 @@ class SOCKS5RequestHandler(StreamRequestHandler, object):
         errors = {}
         for af, addr in fa:
             try:
-                channel = None
-                while not channel:
-                    channel = self.server.ssh.get_transport().open_channel(
-                        "direct-tcpip",
-                        dest_addr=addr,
-                        src_addr=self.request.getpeername()
-                    )
+                channel = self.server.ssh.get_transport().open_channel(
+                    "direct-tcpip",
+                    dest_addr=addr,
+                    src_addr=self.request.getpeername()
+                )
                 return channel, af, addr
             except socket.error as e:
                 # Raise anything that isn't a straight up connection error
@@ -412,7 +408,7 @@ class SOCKS5RequestHandler(StreamRequestHandler, object):
                 # this was.
                 errors[addr] = e
             except paramiko.ssh_exception.SSHException as e:
-                self._log(ERROR, e)
+                self._log(WARNING, e)
                 errors[addr] = e
 
         # Make sure we explode usefully if no address family attempts

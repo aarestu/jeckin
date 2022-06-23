@@ -30,13 +30,12 @@ def get_proxy_ssltls_ssh_handler(config, ssh_account):
             self.log(INFO, self.get_cert_pem())
 
             self.forward_data(self.sock_proxy, self.connection)
-
-            self.sock_proxy.close()
+            self.close_proxy()
 
         def close_proxy(self):
-            self.sock_proxy_http.close()
-            self.sock_proxy_http = None
-
+            if self.sock_proxy_http:
+                self.sock_proxy_http.close()
+                self.sock_proxy_http = None
             super(Handler, self).close_proxy()
 
     return Handler
