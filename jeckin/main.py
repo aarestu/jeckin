@@ -90,7 +90,7 @@ def main():
     run = True
     def handler_stop_signals(signum, frame):
         global run
-        run = False
+        exit(-1)
 
     signal.signal(signal.SIGINT, handler_stop_signals)
     signal.signal(signal.SIGTERM, handler_stop_signals)
@@ -102,10 +102,3 @@ def main():
             ssh.open(*ssh._args)
         except paramiko.ssh_exception.SSHException as e:
             logger.log(INFO, e)
-
-    proxy.shutdown()
-    proxy.server_close()
-    ssh.close()
-
-    server.shutdown()
-    server.server_close()
