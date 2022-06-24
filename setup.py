@@ -33,7 +33,7 @@ setup(
 
     keywords=['python', 'ssh', 'injector', 'free internet', 'tunneling', 'internet gratis', 'http injector'],
     classifiers=[
-        "Development Status :: 0.0.1b1 - BETA",
+        "Development Status :: 1 - Planning",
         "Intended Audience :: Developers",
         "Programming Language :: Python :: 3",
         "Operating System :: Unix",
