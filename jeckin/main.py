@@ -75,7 +75,7 @@ def main():
     tserver = threading.Thread(target=server.serve_forever)
     tserver.start()
 
-    socks_addr, socks_port = ("127.0.0.1", 8010)
+    socks_addr, socks_port = ("127.0.0.1", ssh_account.get("sockport"))
     proxy = jeckin.IPv6EnabledTCPServer((socks_addr, socks_port), jeckin.SOCKS5RequestHandler)
 
     ssh = jeckin.SSHClient()
