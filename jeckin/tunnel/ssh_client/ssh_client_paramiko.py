@@ -6,14 +6,14 @@ import paramiko
 from jeckin.utils import get_logger
 
 
-class SSHClient(paramiko.SSHClient):
+class SSHClientParamiko(paramiko.SSHClient):
     sock = None
 
     _args = None
     _kwargs = None
 
     def __init__(self):
-        super(SSHClient, self).__init__()
+        super(SSHClientParamiko, self).__init__()
         self.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         self.set_log_channel("jeckin.transport")
         self.logger = get_logger("jeckin.ssh")
@@ -37,7 +37,7 @@ class SSHClient(paramiko.SSHClient):
 
     @property
     def is_connected(self):
-        return self.get_transport().active if self.get_transport() else False
+        return self.get_transport().active and self.get_transport().authenticated if self.get_transport() else False
 
     def log(self, level, msg):
         self.logger.log(level, msg)

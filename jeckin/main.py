@@ -12,7 +12,6 @@ from socketserver import ThreadingTCPServer
 import paramiko
 
 import jeckin
-from jeckin.utils import get_logger
 
 logging.basicConfig(level=INFO)
 
@@ -39,10 +38,12 @@ def get_handler_f(tunnel_type):
 def main():
     parser = argparse.ArgumentParser(prog='jeckin', description='HTTP-INJECT tool')
     parser.add_argument('config', metavar='config', type=ConfigType('r'), help='genererate / load config file')
+    parser.add_argument('--sshpass-corkscrew', action=argparse.BooleanOptionalAction, default=False)
 
     args = parser.parse_args()
+    print(args)
 
-    logger = get_logger("jeckin.main")
+    logger = jeckin.get_logger("jeckin.main")
 
     if type(args.config) == str:
         print(f"generating config {args.config} from template")
@@ -70,15 +71,21 @@ def main():
 
     server = ThreadingTCPServer(('', 0), tunnel_f(inject, ssh_account))
     server_injector = ((server.address_family, server.socket_type), ('127.0.0.1', server.server_address[1]))
-    server.allow_reuse_address = False
+    server.allow_reuse_address = True
 
     tserver = threading.Thread(target=server.serve_forever)
     tserver.start()
 
+    if args.sshpass_corkscrew:
+        ssh = jeckin.SSHClientSSHPassCorkscrew('127.0.0.1', server.server_address[1], inject.get("socks_port"))
+        ssh.account = ssh_account
+        ssh.start()
+        return
+
     socks_addr, socks_port = ("127.0.0.1", int(inject.get("socks_port")))
     proxy = jeckin.IPv6EnabledTCPServer((socks_addr, socks_port), jeckin.SOCKS5RequestHandler)
 
-    ssh = jeckin.SSHClient()
+    ssh = jeckin.SSHClientParamiko()
     ssh._args = (server_injector, ssh_account.get("host"), ssh_account.get("port"), ssh_account.get("username"),
                  ssh_account.get("password"))
 
@@ -87,14 +94,12 @@ def main():
     tproxy = threading.Thread(target=proxy.serve_forever)
     tproxy.start()
 
-    run = True
     def handler_stop_signals(signum, frame):
-        global run
         exit(-1)
 
     signal.signal(signal.SIGINT, handler_stop_signals)
     signal.signal(signal.SIGTERM, handler_stop_signals)
-    while run:
+    while True:
         time.sleep(5)
         if ssh.is_connected:
             continue

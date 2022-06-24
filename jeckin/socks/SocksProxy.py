@@ -23,24 +23,19 @@ import struct
 import threading
 from errno import ECONNREFUSED, EHOSTUNREACH, ENETDOWN, ENETUNREACH
 from logging import WARNING
+from socketserver import StreamRequestHandler, ThreadingTCPServer
 
-import paramiko.ssh_exception
+import paramiko
 import select
-
-from jeckin.utils import ip_addr_to_str, families_and_addresses
-
-try:
-    from socketserver import StreamRequestHandler, ThreadingTCPServer
-except ImportError:
-    from SocketServer import StreamRequestHandler, ThreadingTCPServer
-
-from paramiko.common import DEBUG, WARNING, asbytes
+from paramiko.common import DEBUG, asbytes
 from paramiko.py3compat import BytesIO, byte_chr, byte_ord, u
 from paramiko.ssh_exception import NoValidConnectionsError
 from paramiko.util import (
     get_logger,
     ClosingContextManager
 )
+
+from jeckin.utils import ip_addr_to_str, families_and_addresses
 
 SOCKS5_VERSION = 0x05
 
@@ -282,15 +277,16 @@ class SOCKS5RequestHandler(StreamRequestHandler, object):
         try:
             version = m.get_char()
             num_methods = m.get_char()
-
-            if version != SOCKS5_VERSION:
-                self._log(
-                    DEBUG,
-                    "Request for unsupported SOCKS version {}".format(version)
-                )
-                self._send_response(status=SOCKS5_GENERAL_SERVER_FAILURE)
-                return
         except struct.error as e:
+            self._send_response(status=SOCKS5_GENERAL_SERVER_FAILURE)
+            return
+
+        if version != SOCKS5_VERSION:
+            self._log(
+                DEBUG,
+                "Request for unsupported SOCKS version {}".format(version)
+            )
+            self._send_response(status=SOCKS5_GENERAL_SERVER_FAILURE)
             return
 
         auth_methods = {m.get_char() for _ in range(num_methods)}
@@ -341,7 +337,9 @@ class SOCKS5RequestHandler(StreamRequestHandler, object):
             self._send_response(status=SOCKS5_ADDRESS_TYPE_NOT_SUPPORTED)
             return
         channel = None
+
         if not af_and_addrs:
+            self._send_response(status=SOCKS5_ADDRESS_TYPE_NOT_SUPPORTED)
             return
 
         try:
@@ -372,7 +370,9 @@ class SOCKS5RequestHandler(StreamRequestHandler, object):
 
             try:
                 self._forward_data(self.request, channel)
-            except OSError as e:
+            except socket.error as e:
+                self._log(WARNING, e)
+            except select.error as e:
                 self._log(WARNING, e)
 
         finally:
@@ -522,7 +522,7 @@ class SOCKSProxy(ClosingContextManager):
     Instances of this class may be used as context managers.
     """
 
-    def __init__(self, ssh, bind_address="localhost", port=1080):
+    def __init__(self, transport, bind_address="localhost", port=1080):
         """
         Start a SOCKS proxy and make it available on a local socket.
 
@@ -535,7 +535,7 @@ class SOCKSProxy(ClosingContextManager):
         self.server = IPv6EnabledTCPServer(
             (bind_address, port), SOCKS5RequestHandler
         )
-        self.server.ssh = ssh
+        self.server.ssh_transport = transport
         threading.Thread(target=self.server.serve_forever).start()
 
     def close(self):
