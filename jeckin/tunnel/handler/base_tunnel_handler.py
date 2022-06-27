@@ -50,12 +50,22 @@ class BaseTunnelHandler:
 
                 self.sock_proxy.send(initial_con)
                 data = self.read_res_sock(self.sock_proxy)
+                print(data)
 
-            if data.find(b'SSH') != 0:  # try to continue with initial con
+                """
+additional header found
+
+example:
+Content-Length: 104857600000\r\n\r\nSSH-2.0-dropbear_2019.78\r\n\x00\x00blablabla
+                
+                split and sent original data
+                """
+
+            if not self._is_valid_init_data(data):  # try to continue with initial con
                 self.sock_proxy.send(initial_con)
                 data = self.read_res_sock(self.sock_proxy)
 
-            if data.find(b'SSH') == 0:
+            if self._is_valid_init_data(data):
                 ssh_client.send(data)
                 ok = True
                 server_name = data.split(b"\r\n")[0].decode()
@@ -69,6 +79,9 @@ class BaseTunnelHandler:
                 self.log(INFO, f"waiting for {retry}s before reconnecting")
                 time.sleep(retry)
         return ok
+
+    def _is_valid_init_data(self, data):
+        return data.find(b'SSH') == 0 or b"\r\n\r\nSSH" in data
 
     def _get_sock(self, hostname, port):
         sock = None

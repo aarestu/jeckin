@@ -1,4 +1,5 @@
 import logging
+import random
 import subprocess
 import time
 
@@ -27,7 +28,7 @@ class SSHClientSSHPassCorkscrew(object):
             proxy_command = self.proxy_command
 
             command = f'sshpass -p "{password}" ssh -v -CND 0.0.0.0:{self.sock_port} {host} -p {port} -l "{username}" ' + \
-                      f'-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="{proxy_command}"'
+                      f'-o ConnectTimeout=10 -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyCommand="{proxy_command}"'
 
             response = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
@@ -69,4 +70,4 @@ class SSHClientSSHPassCorkscrew(object):
 
             logging.info(f"ssh:Waiting for {s}s before reconnecting")
             time.sleep(s)
-            s = min(s + 1, 20)
+            s = min(s + 1, random.randint(1, 20))

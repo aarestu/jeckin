@@ -6,7 +6,7 @@ import signal
 import threading
 import time
 from argparse import ArgumentTypeError
-from logging import INFO
+from logging import INFO, DEBUG
 from socketserver import ThreadingTCPServer
 
 import paramiko
@@ -76,6 +76,13 @@ def main():
     tserver = threading.Thread(target=server.serve_forever)
     tserver.start()
 
+
+    def handler_stop_signals(signum, frame):
+        exit(-1)
+
+    signal.signal(signal.SIGINT, handler_stop_signals)
+    signal.signal(signal.SIGTERM, handler_stop_signals)
+
     if args.sshpass_corkscrew:
         ssh = jeckin.SSHClientSSHPassCorkscrew('127.0.0.1', server.server_address[1], inject.get("socks_port"))
         ssh.account = ssh_account
@@ -94,11 +101,6 @@ def main():
     tproxy = threading.Thread(target=proxy.serve_forever)
     tproxy.start()
 
-    def handler_stop_signals(signum, frame):
-        exit(-1)
-
-    signal.signal(signal.SIGINT, handler_stop_signals)
-    signal.signal(signal.SIGTERM, handler_stop_signals)
     while True:
         time.sleep(5)
         if ssh.is_connected:
