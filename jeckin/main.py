@@ -41,7 +41,6 @@ def main():
     parser.add_argument('--sshpass-corkscrew', action=argparse.BooleanOptionalAction, default=False)
 
     args = parser.parse_args()
-    print(args)
 
     logger = jeckin.get_logger("jeckin.main")
 

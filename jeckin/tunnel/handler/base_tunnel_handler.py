@@ -50,16 +50,6 @@ class BaseTunnelHandler:
 
                 self.sock_proxy.send(initial_con)
                 data = self.read_res_sock(self.sock_proxy)
-                print(data)
-
-                """
-additional header found
-
-example:
-Content-Length: 104857600000\r\n\r\nSSH-2.0-dropbear_2019.78\r\n\x00\x00blablabla
-                
-                split and sent original data
-                """
 
             if not self._is_valid_init_data(data):  # try to continue with initial con
                 self.sock_proxy.send(initial_con)
