@@ -36,9 +36,9 @@ class SSHClientSSHPassCorkscrew(object):
                 line = line.lstrip(rb'(debug1|Warning):').strip() + b'\r'
                 try:
                     line = line.decode("ascii")
-                    logging.debug("ssh:" + line)
+                    # logging.debug("ssh:" + line)
                 except:
-                    logging.debug(b"ssh:" + line )
+                    # logging.debug(b"ssh:" + line )
                     continue
 
                 if 'pledge: proc' in line:
