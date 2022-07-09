@@ -13,6 +13,7 @@ def get_proxy_ssh_handler(config, ssh_account):
 
             self.proxy_host = config.get("proxy_host")
             self.proxy_port = int(config.get("proxy_port"))
+            self.net_interface = config.get("net_interface")
 
             super(Handler, self).setup()
 

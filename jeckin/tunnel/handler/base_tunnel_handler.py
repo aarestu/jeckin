@@ -5,11 +5,10 @@ from errno import ECONNREFUSED, EHOSTUNREACH
 from logging import INFO, DEBUG, ERROR
 
 from paramiko.ssh_exception import NoValidConnectionsError
-from paramiko.util import retry_on_signal
 from select import select as ss
 
 from jeckin.utils import get_logger
-from jeckin.utils import loop_payload, families_and_addresses
+from jeckin.utils import loop_payload, families_and_addresses, retry_on_signal
 
 
 class BaseTunnelHandler:
@@ -17,6 +16,7 @@ class BaseTunnelHandler:
     payload = "[real_raw]"
     target_host = "0.0.0.0"
     target_port = 22
+    net_interface = None
 
     con_ce = b'HTTP/1.1 200 Connection established\r\n\r\n'
 
@@ -39,7 +39,7 @@ class BaseTunnelHandler:
             data = self.read_res_sock(self.sock_proxy)
 
             if data.find(b'HTTP/1.') == 0:
-                if data.find(b"HTTP/1.1"): # GOOD SIGN! Switching Protocol
+                if data.find(b"HTTP/1.1"):  # GOOD SIGN! Switching Protocol
                     self.log(INFO, f'GOOD SIGN!')
 
                 if initial_con.find(b'CONNECT') == 0:
@@ -80,11 +80,13 @@ class BaseTunnelHandler:
         for af, addr in to_try:
             try:
                 sock = socket.socket(af, socket.SOCK_STREAM)
+                if self.net_interface:
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, self.net_interface.decode())
+
                 retry_on_signal(lambda: sock.connect(addr))
                 break
             except socket.error as e:
                 if e.errno not in (ECONNREFUSED, EHOSTUNREACH):
-                    self.server.shutdown()
                     raise
                 errors[addr] = e
 

@@ -1,4 +1,5 @@
 import enum
+import errno
 import logging
 import socket
 import threading
@@ -81,6 +82,16 @@ def families_and_addresses(hostname, port):
     if guess:
         for family, _, _, _, sockaddr in addrinfos:
             yield family,
+
+
+def retry_on_signal(function):
+    """Retries function until it doesn't raise an EINTR error"""
+    while True:
+        try:
+            return function()
+        except EnvironmentError as e:
+            if e.errno != errno.EINTR:
+                raise
 
 
 _g_thread_ids = {}
