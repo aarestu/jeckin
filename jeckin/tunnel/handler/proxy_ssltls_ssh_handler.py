@@ -14,7 +14,13 @@ def get_proxy_ssltls_ssh_handler(config, ssh_account):
 
             self.proxy_host = config.get("proxy_host")
             self.proxy_port = int(config.get("proxy_port"))
+
             self.sni = config.get("sni")
+            self.ssl_auth = config.get("ssl_auth")
+            self.protocol = config.get("protocol")
+            if not self.sni:
+                raise ValueError("sni required")
+
             self.net_interface = config.get("net_interface")
 
             super(Handler, self).setup()
