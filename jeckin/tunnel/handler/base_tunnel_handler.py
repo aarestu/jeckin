@@ -81,7 +81,7 @@ class BaseTunnelHandler:
             try:
                 sock = socket.socket(af, socket.SOCK_STREAM)
                 if self.net_interface:
-                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, self.net_interface.decode())
+                    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, self.net_interface.encode())
 
                 retry_on_signal(lambda: sock.connect(addr))
                 break
