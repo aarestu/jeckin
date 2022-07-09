@@ -6,7 +6,7 @@ import signal
 import threading
 import time
 from argparse import ArgumentTypeError
-from logging import INFO, DEBUG
+from logging import INFO
 from socketserver import ThreadingTCPServer
 
 import paramiko
@@ -38,7 +38,7 @@ def get_handler_f(tunnel_type):
 def main():
     parser = argparse.ArgumentParser(prog='jeckin', description='HTTP-INJECT tool')
     parser.add_argument('config', metavar='config', type=ConfigType('r'), help='genererate / load config file')
-    parser.add_argument('--sshpass-corkscrew', action=argparse.BooleanOptionalAction, default=False)
+    parser.add_argument('--ssh-native', action=argparse.BooleanOptionalAction, default=False)
 
     args = parser.parse_args()
 
@@ -75,15 +75,14 @@ def main():
     tserver = threading.Thread(target=server.serve_forever)
     tserver.start()
 
-
     def handler_stop_signals(signum, frame):
         exit(-1)
 
     signal.signal(signal.SIGINT, handler_stop_signals)
     signal.signal(signal.SIGTERM, handler_stop_signals)
 
-    if args.sshpass_corkscrew:
-        ssh = jeckin.SSHClientSSHPassCorkscrew('127.0.0.1', server.server_address[1], inject.get("socks_port"))
+    if args.ssh_native:
+        ssh = jeckin.SSHClientNative('127.0.0.1', server.server_address[1], inject.get("socks_port"))
         ssh.account = ssh_account
         ssh.start()
         return
