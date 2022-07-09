@@ -9,7 +9,7 @@ long_description = (here / "README.md").read_text(encoding="utf-8")
 
 setup(
     name='jeckin',
-    version='0.0.1b8',
+    version='0.0.1b9',
     python_requires=">=3.7, <4",
 
     author="Restu Suhendar",
