@@ -16,6 +16,7 @@ def get_direct_ssl_tls_ssh_handler(config, ssh_account):
             self.protocol = config.get("protocol")
             if not self.sni:
                 raise ValueError("sni required")
+            self.net_interface = config.get("net_interface")
             super(Handler, self).setup()
 
         def create_sock_proxy(self):

@@ -11,6 +11,7 @@ def get_direct_ssh_handler(config, ssh_account):
             self.target_port = int(ssh_account.get("port"))
             # self.payload = config.get("payload", self.payload).encode()
             self.payload = None
+            self.net_interface = config.get("net_interface")
             super(Handler, self).setup()
 
         def handle(self):
