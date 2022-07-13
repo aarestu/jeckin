@@ -17,6 +17,8 @@ class BaseTunnelSSLTLSHandler(BaseTunnelProxyHandler):
     def warp_sock_to_ssl_tls(self, sock):
         protocol = self.get_protocol_ssl_tls(self.protocol)
         if not protocol:
+            self.ssl_auth = (self.ssl_auth.lower() in ['true', '1', 't', 'y', 'yes', 'yeah', 'yup']) if type(self.ssl_auth) == str else self.ssl_auth
+
             purpose = ssl.Purpose.SERVER_AUTH if self.ssl_auth else ssl.Purpose.CLIENT_AUTH
             return ssl.create_default_context(purpose=purpose) \
                 .wrap_socket(sock, server_hostname=self.sni, do_handshake_on_connect=True)
